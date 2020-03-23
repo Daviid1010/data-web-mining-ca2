@@ -35,3 +35,6 @@ ggplot(data = all[!is.na(all$SalePrice),],
        aes(x=SalePrice)) +
   geom_histogram(fill="blue", binwidth = 10000) +
   scale_x_continuous(breaks = seq(0, 800000, by=100000))
+
+##### we can see here a very left skew, the data is not noramlly distibuted
+##### we will need to account for this when we build our model
