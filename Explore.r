@@ -87,3 +87,37 @@ all$PoolQC[2600] = 2
 
 ### End of Pool NAs
 ###################
+
+############## Misc Features NAs
+summary(all$MiscFeature)
+## 2814 NAs meaening no misc features, we'll replace that with none
+
+all$MiscFeature = as.character(all$MiscFeature)
+all$MiscFeature[is.na(all$MiscFeature)] = 'None'
+all$MiscFeature = as.factor(all$MiscFeature)
+table(all$MiscFeature)
+
+### Alley NAs
+summary(all$Alley)
+all$Alley = as.character(all$Alley)
+all$Alley[is.na(all$Alley)] = 'None'
+all$Alley = as.factor(all$Alley)
+table(all$Alley)
+
+##Fence NAs
+summary(all$Fence)
+all$Fence = as.character(all$Fence)
+all$Fence[is.na(all$Fence)] = 'None'
+table(all$Fence)
+all$Fence = as.factor(all$Fence)
+
+## All Fireplaces, all NAs have no fireplaces
+summary(all$FireplaceQu)
+
+all$FireplaceQu = as.character(all$FireplaceQu)
+all$FireplaceQu[is.na(all$FireplaceQu)] = 'None'
+all$FireplaceQu = as.integer(revalue(all$FireplaceQu, Qualities))
+table(all$FireplaceQu)
+
+## no missing value in fireplace num as it is a number, NAs being 0
+table(all$Fireplaces)
