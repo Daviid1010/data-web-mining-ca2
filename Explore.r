@@ -121,3 +121,75 @@ table(all$FireplaceQu)
 
 ## no missing value in fireplace num as it is a number, NAs being 0
 table(all$Fireplaces)
+
+############ Garage variables ###################
+summary(all$GarageArea) ## 1 NA Value
+summary(all$GarageCars) ##  1 NA Value
+summary(all$GarageCond) ## 159 NA values
+summary(all$GarageFinish) ## 159 NA values
+summary(all$GarageQual) ## 159 NA values
+summary(all$GarageType) ## 157 NA values
+summary(all$GarageYrBlt) ## 159 NA values
+summary(all$GrLivArea) ## no NAs,
+
+### Garage Built Variabe is easy, we can replace this with year built
+all$GarageYrBlt[is.na(all$GarageYrBlt)] = all$YearBuilt[is.na(all$GarageYrBlt)]
+summary(all$GarageYrBlt)
+
+## NA mean No garage, now lets check why there is a difference in garage type
+length(which(is.na(all$GarageType) & is.na(all$GarageFinish) & is.na(all$GarageCond) & is.na(all$GarageQual)))
+### The 57 NAs in Garage Type are NA in the other four 159 NAs
+
+
+
+kable(all[!is.na(all$GarageType) & is.na(all$GarageFinish),
+          c('GarageCars', 'GarageArea', 'GarageType', 'GarageCond', 'GarageQual', 'GarageFinish')])
+
+### House 2127 has a garage car, area and type but 2577 has no other garage variables
+
+## impute common vars in house 2127
+all$GarageCond[2127] = names(sort(-table(all$GarageCond)))[1]
+all$GarageQual[2127] = names(sort(-table(all$GarageQual)))[1]
+all$GarageFinish[2127] = names(sort(-table(all$GarageFinish)))[1]
+
+## show the results on house
+kable(all[2127,c('GarageYrBlt', 'GarageCars', 'GarageArea', 'GarageType',
+                 'GarageCond', 'GarageQual', 'GarageFinish')])
+
+### Garage car and Garage area both have 1 NA
+## we need to fix house 2577
+all$GarageCars[2577] = 0
+all$GarageArea[2577] = 0
+all$GarageType[2577] = NA
+
+## check if NAs of the variables are now 158
+length(which(is.na(all$GarageType) & is.na(all$GarageFinish) & is.na(all$GarageCond) & is.na(all$GarageQual)))
+
+summary(all$GarageType)
+### in this case NA means No Garage
+all$GarageType = as.character(all$GarageType)
+all$GarageType[is.na(all$GarageType)] = 'No Garage'
+all$GarageType  = as.factor(all$GarageType)
+table(all$GarageType)
+
+#### Garage Finish means no garage, values are ordinal
+
+all$GarageFinish = as.character(all$GarageFinish)
+all$GarageFinish[is.na(all$GarageFinish)] = 'None'
+Finish = c('None' = 0, 'Unf' = 1, 'RFn' = 2, 'Fin' = 3)
+
+all$GarageFinish = as.integer(revalue(all$GarageFinish, Finish))
+table(all$GarageFinish)
+
+### garage quality is ordinal 
+
+all$GarageQual = as.character(all$GarageQual)
+all$GarageQual[is.na(all$GarageQual)] <- 'None'
+all$GarageQual<-as.integer(revalue(all$GarageQual, Qualities))
+table(all$GarageQual)
+
+### garage condition is ordinal 
+all$GarageCond = as.character(all$GarageQual)
+all$GarageCond[is.na(all$GarageCond)] <- 'None'
+all$GarageCond = as.integer(revalue(all$GarageCond, Qualities))
+table(all$GarageCond)
