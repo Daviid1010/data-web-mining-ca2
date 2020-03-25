@@ -625,6 +625,7 @@ ggplot(data=all[!is.na(all$SalePrice),], aes(x=GrLivArea, y=SalePrice))+
 ### Lets look at the Quality
 all[c(524, 1299), c('SalePrice', 'GrLivArea', 'OverallQual')]
 ### Both of these are quality 10, which means we may have to remove them as outliers
+all <- all[-c(524, 1299),]
 
 #############################
 ##### From Year of House Construction and Remodelling Year
@@ -656,23 +657,84 @@ cor(all$SalePrice, all$TotalSqaureFeet, use = 'pairwise.complete.obs')
 
 ####### High Correlated Variables, we need to examine this further
 ## We need to get rid of multicolinearity!!!!!!
-
+#### These columns are from looking at the graph generated earlier
+dropVars <- c('YearRemodAdd', 'GarageYrBlt', 'GarageArea', 'GarageCond', 'TotalBsmtSF', 'TotalRmsAbvGrd', 'BsmtFinSF1')
+all = all[,!(names(all) %in% dropVars)]
 
 
 
 #######################
-### One Hot Encoding of Categorical vars
-#### This is handy for machine learning algorithms
-#######################
+## Seperate out numeric variables for preprocessing
+numericVarNames <- numericVarNames[!(numericVarNames %in% c('MSSubClass', 'MoSold', 'YrSold', 'SalePrice', 'OverallQual', 'OverallCond'))] 
 
+numericVarNames = numericVarNames <- append(numericVarNames, c('Age'))
 
-
-
+Numerics = all[, names(all) %in% numericVarNames]
+Factors = all[,!(names(all) %in% numericVarNames)]
+Factors = Factors[, names(Factors) != 'SalePrice']
 
 ######################
 ### Skewness #########
 ########################
 
 ## alot of the nueric data is skewed so we should examine this
+##### using a loop we will examine skewness and take log of skewed data
+
+for(i in 1:ncol(Numerics)){
+  if (abs(skew(Numerics[,i]))>0.7){
+    DFnumeric[,i] <- log(Numerics[,i] +1)
+  }
+}
+PreNum = preProcess(Numerics, method=c("center", "scale"))
+print(PreNum)
+Normalised <- predict(PreNum, Numerics)
+dim(Normalised)
+
+#######################
+### One Hot Encoding of Categorical vars
+#### This is handy for machine learning algorithms
+
+FactorsOneHot = as.data.frame(model.matrix(~.-1, Factors))
+dim(FactorsOneHot)
+
+######check if values were not in test set
+##no point in keeping them if they're not
+ZerocolTest <- which(colSums(FactorsOneHot[(nrow(all[!is.na(all$SalePrice),])+1):nrow(all),])==0)
+colnames(FactorsOneHot[ZerocolTest])
+
+FactorsOneHot =FactorsOneHot[,-ZerocolTest]
+
+ZerocolTrain <- which(colSums(FactorsOneHot[1:nrow(all[!is.na(all$SalePrice),]),])==0)
+colnames(FactorsOneHot[ZerocolTrain])
+
+FactorsOneHot <- FactorsOneHot[,-ZerocolTrain]
+
+######### Lets also remove cols with less than 12 1's in the train set
+fewOnes = which(colSums(FactorsOneHot[1:nrow(all[!is.na(all$SalePrice),]),])<10)
+colnames(FactorsOneHot[fewOnes])
+FactorsOneHot =  FactorsOneHot[,-fewOnes] #removing predictors
+dim(FactorsOneHot)
+
+newAll = cbind(Normalised, FactorsOneHot)
 
 
+########## Skewness of Sales Price
+######### Graph above showed right skew to sales price
+
+skew(all$SalePrice)
+
+qqnorm(all$SalePrice)
+qqline(all$SalePrice)
+
+####### skew here too high, we should take the log
+
+all$SalePrice = log(all$SalePrice)
+
+skew(all$SalePrice)
+qqnorm(all$SalePrice)
+qqline(all$SalePrice)
+
+#####################
+#### Lets put back the train and test data sets
+newTrain = newAll[!is.na(all$SalePrice),]
+newTest = newAll[is.na(all$SalePrice),]
