@@ -486,3 +486,141 @@ summary(all$SaleType)
 ### Examine if they are ordinal or categorical
 ########################################
 
+### Lets Examine the other variables
+summary(all$Foundation)
+class(all$Foundation)
+### not ordinal, leave as a factor
+
+summary(all$Heating)
+class(all$Heating)
+### not ordianl, leave as factor
+
+summary(all$RoofStyle)
+class(all$RoofStyle)
+## not ordinal, leave as factor
+
+summary(all$RoofMatl)
+class(all$RoofMatl)
+### not ordinal, leave as factor
+
+summary(all$LandContour)
+class(all$LandContour)
+### not ordinal, leave as factor
+
+summary(all$LandSlope)
+class(all$LandSlope)
+### this is ordinal ordinal, label encoding needed
+all$LandSlope = as.character(all$LandSlope)
+all$LandSlope<-as.integer(revalue(all$LandSlope, c('Sev'=0, 'Mod'=1, 'Gtl'=2)))
+table(all$LandSlope)
+
+summary(all$BldgType)
+### from the data_description.txt file this may be ordinal
+### we'll use a plot to examine thi
+ggplot(all[!is.na(all$SalePrice),], aes(x=as.factor(BldgType), y=SalePrice)) +
+  geom_bar(stat='summary', fun.y = "median", fill='blue')+
+  scale_y_continuous(breaks= seq(0, 800000, by=100000), labels = comma) +
+  geom_label(stat = "count", aes(label = ..count.., y = ..count..))
+
+## Graph Shows no ordinality
+all$BldgType = as.factor(all$BldgType)
+table(all$BldgType)
+
+summary(all$HouseStyle)
+## no ordinality, use factors
+class(all$HouseStyle)
+
+summary(all$Neighborhood)
+### lots of values here, not ordinal
+class(all$Neighborhood)
+## keep as factors
+
+summary(all$Condition1)
+## not ordinal, remain as factors
+class(all$Condition1)
+
+summary(all$Condition2)
+## not ordinal, remain as factors
+class(all$Condition2)
+
+summary(all$Street)
+### interesting in that it is ordinal but with two values
+## we should label encode this
+
+all$Street = as.character(all$Street)
+all$Street<-as.integer(revalue(all$Street, c('Grvl'=0, 'Pave'=1)))
+table(all$Street)
+
+summary(all$PavedDrive)
+## ordinal value here, label encoding
+all$PavedDrive = as.character(all$PavedDrive)
+all$PavedDrive<-as.integer(revalue(all$PavedDrive, c('N'=0, 'P'=1, 'Y'=2)))
+table(all$PavedDrive)
+
+
+####################
+### All Varaibles complete, and char vars are either factors or numeric labels
+##### Year and Month Sold Should be Categorical
+#### MSSub class uses numbers to code classes, these are categories of type of house
+class(all$MoSold)
+all$MoSold = as.factor(all$MoSold)
+### we wont make Year a factor yet because we want to compute age
+
+all$MSSubClass = as.factor(all$MSSubClass)
+### using values from data_description.txt, we can revalue the factors
+all$MSSubClass<-revalue(all$MSSubClass, c('20'='1 story 1946+', '30'='1 story 1945-', '40'='1 story unf attic', '45'='1,5 story unf', '50'='1,5 story fin', '60'='2 story 1946+', '70'='2 story 1945-', '75'='2,5 story all ages', '80'='split/multi level', '85'='split foyer', '90'='duplex all style/age', '120'='1 story PUD 1946+', '150'='1,5 story PUD all', '160'='2 story PUD 1946+', '180'='PUD multilevel', '190'='2 family conversion'))
+summary(all$MSSubClass)
+
+###############################################################
+
+### All char variables factored or label encoded using numbers
+
+###############################################################
+
+
+#####################################################################
+### Now we should examine numeric Correlations against Sales Price
+#####################################################################
+
+#####  Get Correlation Values on All Numeric variables against SalesPrice
+numericVars <- which(sapply(all, is.numeric)) #index vector numeric variables
+numericVarNames <- names(numericVars)
+all_numVar <- all[, numericVars]
+cor_numVar <- cor(all_numVar, use="pairwise.complete.obs")
+
+cor_sorted <- as.matrix(sort(cor_numVar[,'SalePrice'], decreasing = TRUE))
+
+
+#### Only take higly correlated variables
+CorHigh <- names(which(apply(cor_sorted, 1, function(x) abs(x)>0.5)))
+cor_numVar <- cor_numVar[CorHigh, CorHigh]
+
+
+#### Plot the Correlations
+corrplot.mixed(cor_numVar, tl.col="black", tl.pos = "lt")
+
+##################################
+## we can see from here that the two highest correlations are
+## 1. Overall Quality
+## 2. Above Grade Living Area
+#### I want to examine these against Sales price
+
+ggplot(data=all[!is.na(all$SalePrice),], aes(x=factor(OverallQual), y=SalePrice))+
+  geom_boxplot(col='blue') + labs(x='Overall Quality') +
+  scale_y_continuous(breaks= seq(0, 800000, by=100000), labels = comma)
+
+##### We can see some outliers for this plot, look at grade 4 and grade 10, possibly even grade 9
+##### Nothing that is very far from the rest of the values however
+
+
+ggplot(data=all[!is.na(all$SalePrice),], aes(x=GrLivArea, y=SalePrice))+
+  geom_point(col='blue') + geom_smooth(method = "lm", se=FALSE, color="black", aes(group=1)) +
+  scale_y_continuous(breaks= seq(0, 800000, by=100000), labels = comma) +
+  geom_text_repel(aes(label = ifelse(all$GrLivArea[!is.na(all$SalePrice)]>4500, rownames(all), '')))
+
+#### Looking at this we can see house 525 and 1299 are outliers in terms of Livng Area
+### Lets look at the Quality
+all[c(524, 1299), c('SalePrice', 'GrLivArea', 'OverallQual')]
+### Both of these are quality 10, which means we may have to remove them as outliers
+
+
