@@ -66,12 +66,12 @@ ggplot(data = all[!is.na(all$SalePrice),],
 summary(all$SalePrice)
 ##### we can see here a very left skew, the data is not noramlly distibuted
 ##### we will need to account for this when we build our model
-
+#### we could get the log of this sales data to perhaps get rid of the skewness
 
 ####### Before Our Modelling We Will Need to Examine Missing Values By Each Variable
 ####### We will use integer values if columns are ordinal
 ####### we will use factors if character columns are non-oridinal
-#### we can use model.matrix function later to convert factors to numbers
+#### we can use model.matrix function later to convert factors to numbers (one hot encoding)
 ######## From line 72 to 487 we deal with our NA values #######################
 
 
@@ -626,46 +626,53 @@ ggplot(data=all[!is.na(all$SalePrice),], aes(x=GrLivArea, y=SalePrice))+
 all[c(524, 1299), c('SalePrice', 'GrLivArea', 'OverallQual')]
 ### Both of these are quality 10, which means we may have to remove them as outliers
 
-############################################################################
-### we can use Random Forrest to see what are the most important important
-############################################################################
+#############################
+##### From Year of House Construction and Remodelling Year
+##### We can create a house age variable
+##############################
 
-set.seed(2000)
-quick_RF = randomForest(x=all[1:1460,-79], y = all$SalePrice[1:1460],
-                        ntree = 100, importance = TRUE)
-imp_RF = importance(quick_RF)
-imp_DF = data.frame(Variables = row.names(imp_RF), MSE = imp_RF[,1])
-imp_DF = imp_DF[order(imp_DF$MSE, decreasing = TRUE),]
+all$Remod = ifelse(all$YearBuilt==all$YearRemodAdd,0,1) # 0 is no remodel, 1 is remodel
 
-ggplot(imp_DF[1:20,], 
-       aes(x=reorder(Variables, MSE), y=MSE, fill=MSE)) +
-  geom_bar(stat = 'identity') + labs(x = 'Variables', y = 'Increase MSE if variable is randomly permutated')+
-  coord_flip()+ theme(legend.position = 'none')
+all$Age = as.numeric(all$YrSold) - all$YearRemodAdd
 
+cor(all$SalePrice[!is.na(all$SalePrice)], all$Age[!is.na(all$SalePrice)])
 
-trainsPreProcessed = all[1:1460,]
-trainsPreProcessed$SalePrice
-x = model.matrix(SalePrice~., trainsPreProcessed)[,!(names(trainsPreProcessed) %in% 'SalePrice')]
-y = trainsPreProcessed %>%
-  select(SalePrice) %>%
-  unlist() %>%
-  as.numeric()
+################
+## Create an isNew variable if house is ne
+################
 
-grid = 10^seq(10,-2, length = 100)
-ridge_mod = glmnet(x,y, alpha = 0, lamdba = grid)
+all$IsNew = ifelse(all$YrSold==all$YearBuilt,1,0)
+table(all$IsNew) # 116 new houses
 
-##dim(coef(ridge_mod))
-##plot(ridge_mod)
-##ridge_mod$lambda[50]
-##coef(ridge_mod)[,50]
+############
+## We have Sqaure Feet for Living Space, but also basement Space
+# we could consider basement as living space
+
+all$TotalSqaureFeet = all$GrLivArea + all$TotalBsmtSF
+cor(all$SalePrice, all$TotalSqaureFeet, use = 'pairwise.complete.obs')
+#### Very high correlation here 0.779 rougly
 
 
-sqrt(sum(coef(ridge_mod)[-1,60]^2)) ## Calculates L2 Norm
 
-ridge_mod$lambda[60]
-coef(ridge_mod)[,60]
-sqrt(sum(coef(ridge_mod)[-1,60]^2)) # Calculate l2 norm
+####### High Correlated Variables, we need to examine this further
+## We need to get rid of multicolinearity!!!!!!
 
 
-predict(ridge_mod, s =50, type = "coefficients")[1:20,]
+
+
+#######################
+### One Hot Encoding of Categorical vars
+#### This is handy for machine learning algorithms
+#######################
+
+
+
+
+
+######################
+### Skewness #########
+########################
+
+## alot of the nueric data is skewed so we should examine this
+
 
