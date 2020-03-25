@@ -69,6 +69,7 @@ summary(all$SalePrice)
 ####### We will use integer values if columns are ordinal
 ####### we will use factors if character columns are non-oridinal
 #### we can use model.matrix function later to convert factors to numbers
+######## From line 72 to 487 we deal with our NA values #######################
 
 
 ### Pool NAs #######
@@ -454,3 +455,34 @@ all$ExterCond = as.character(all$ExterCond)
 all$ExterCond<-as.integer(revalue(all$ExterCond, Qualities))
 table(all$ExterCond)
 summary(all$ExterCond)
+
+
+##Electrical Systems
+summary(all$Electrical) # 1 NA
+## impute most common categorical value
+all$Electrical[is.na(all$Electrical)] <- names(sort(-table(all$Electrical)))[1]
+all$Electrical <- as.factor(all$Electrical)
+table(all$Electrical)
+summary(all$Electrical) # no more NA
+
+#### Type of Sales
+summary(all$SaleType) # 1 NA
+### impute most common type of sales value
+all$SaleType[is.na(all$SaleType)] <- names(sort(-table(all$SaleType)))[1]
+
+all$SaleType <- as.factor(all$SaleType)
+table(all$SaleType)
+summary(all$SaleType)
+## no more NAs
+
+#####################################
+##### No More NAs !!!!!! ############
+#####################################
+
+
+
+#####################################
+### We need to factorise variables with no NAs
+### Examine if they are ordinal or categorical
+########################################
+
