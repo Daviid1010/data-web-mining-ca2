@@ -66,6 +66,10 @@ summary(all$SalePrice)
 
 
 ####### Before Our Modelling We Will Need to Examine Missing Values By Each Variable
+####### We will use integer values if columns are ordinal
+####### we will use factors if character columns are non-oridinal
+#### we can use model.matrix function later to convert factors to numbers
+
 
 ### Pool NAs #######
 summary(all$PoolQC)
@@ -273,3 +277,36 @@ all$BsmtFinSF1[is.na(all$BsmtFinSF1)] <-0
 all$BsmtFinSF2[is.na(all$BsmtFinSF2)] <-0
 all$BsmtUnfSF[is.na(all$BsmtUnfSF)] <-0
 all$TotalBsmtSF[is.na(all$TotalBsmtSF)] <-0
+
+
+#### Lot Variables
+summary(all$LotArea)
+summary(all$LotConfig)
+summary(all$LotShape)
+summary(all$LotFrontage) # 486 NAs!!
+
+#### For the Lot Frontage Variable, we could impute the median per neighbourhood
+## this is because lot frontage is the feet of street connected to property
+
+### Plot which shows median lot frontage by neighbourhood
+## we can use these figures for imputation
+ggplot(all[!is.na(all$LotFrontage),],
+       aes(x=as.factor(Neighborhood),
+           y = LotFrontage)) +
+  geom_bar(stat = 'summary', fun.y = 'median', fill = 'blue') +
+  xlab("Neighbourhood") + ylab("Lot Frontage") + 
+  theme(axis.text.x = element_text(angle = 95, hjust = 1))
+### for all rows with NA as LotFrontage, impute median value of Lot Frontage By what the Neighbourhood is
+for (i in 1:nrow(all)){
+  if(is.na(all$LotFrontage[i])){
+    all$LotFrontage[i] <- as.integer(median(all$LotFrontage[all$Neighborhood==all$Neighborhood[i]], na.rm=TRUE)) 
+  }
+}
+
+### No more NAs for Lot Frontage!!
+
+### LotShape is Ordinal so we will follow int approach here
+
+all$LotShape = as.integer(revalue(all$LotShape, c('IR3' =0, 'IR2' =1, 'IR1' =2, 'Reg' =3)))
+table(all$LotShape)
+##### 
