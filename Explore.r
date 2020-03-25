@@ -11,6 +11,8 @@
 ##install.packages("randomForest")
 ##install.packages("psych")
 ##install.packages("xgboost")
+##install.packages("ISLR")
+##install.packages("glmnet")
 library(knitr)
 library(ggplot2)
 library(plyr)
@@ -24,7 +26,8 @@ library(ggrepel)
 library(randomForest)
 library(psych)
 library(xgboost)
-
+library(ISLR)
+library(glmnet)
 
 testdata = read.csv("test.csv", header = T)
 traindata = read.csv("train.csv", header = T)
@@ -623,4 +626,46 @@ ggplot(data=all[!is.na(all$SalePrice),], aes(x=GrLivArea, y=SalePrice))+
 all[c(524, 1299), c('SalePrice', 'GrLivArea', 'OverallQual')]
 ### Both of these are quality 10, which means we may have to remove them as outliers
 
+############################################################################
+### we can use Random Forrest to see what are the most important important
+############################################################################
+
+set.seed(2000)
+quick_RF = randomForest(x=all[1:1460,-79], y = all$SalePrice[1:1460],
+                        ntree = 100, importance = TRUE)
+imp_RF = importance(quick_RF)
+imp_DF = data.frame(Variables = row.names(imp_RF), MSE = imp_RF[,1])
+imp_DF = imp_DF[order(imp_DF$MSE, decreasing = TRUE),]
+
+ggplot(imp_DF[1:20,], 
+       aes(x=reorder(Variables, MSE), y=MSE, fill=MSE)) +
+  geom_bar(stat = 'identity') + labs(x = 'Variables', y = 'Increase MSE if variable is randomly permutated')+
+  coord_flip()+ theme(legend.position = 'none')
+
+
+trainsPreProcessed = all[1:1460,]
+trainsPreProcessed$SalePrice
+x = model.matrix(SalePrice~., trainsPreProcessed)[,!(names(trainsPreProcessed) %in% 'SalePrice')]
+y = trainsPreProcessed %>%
+  select(SalePrice) %>%
+  unlist() %>%
+  as.numeric()
+
+grid = 10^seq(10,-2, length = 100)
+ridge_mod = glmnet(x,y, alpha = 0, lamdba = grid)
+
+##dim(coef(ridge_mod))
+##plot(ridge_mod)
+##ridge_mod$lambda[50]
+##coef(ridge_mod)[,50]
+
+
+sqrt(sum(coef(ridge_mod)[-1,60]^2)) ## Calculates L2 Norm
+
+ridge_mod$lambda[60]
+coef(ridge_mod)[,60]
+sqrt(sum(coef(ridge_mod)[-1,60]^2)) # Calculate l2 norm
+
+
+predict(ridge_mod, s =50, type = "coefficients")[1:20,]
 
