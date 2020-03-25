@@ -192,8 +192,9 @@ all$GarageQual[is.na(all$GarageQual)] <- 'None'
 all$GarageQual<-as.integer(revalue(all$GarageQual, Qualities))
 table(all$GarageQual)
 
+table(all$GarageCond)
 ### garage condition is ordinal 
-all$GarageCond = as.character(all$GarageQual)
+all$GarageCond = as.character(all$GarageCond)
 all$GarageCond[is.na(all$GarageCond)] <- 'None'
 all$GarageCond = as.integer(revalue(all$GarageCond, Qualities))
 table(all$GarageCond)
@@ -306,7 +307,150 @@ for (i in 1:nrow(all)){
 ### No more NAs for Lot Frontage!!
 
 ### LotShape is Ordinal so we will follow int approach here
+all$LotShape = as.character(all$LotShape)
 
 all$LotShape = as.integer(revalue(all$LotShape, c('IR3' =0, 'IR2' =1, 'IR1' =2, 'Reg' =3)))
 table(all$LotShape)
-##### 
+sum(table(all$LotShape))
+#####
+
+### Lot Config, non-ordinal, so we will convert to a factor
+
+all$LotConfig = as.factor(all$LotConfig)
+table(all$LotConfig)
+sum(table(all$LotConfig))
+
+summary(all$LotArea)
+summary(all$LotConfig)
+summary(all$LotShape)
+summary(all$LotFrontage)
+
+#### No More NAs for Lot Config!!!
+
+#### Masonry Variable NAs
+summary(all$MasVnrArea) # 23 NAs
+summary(all$MasVnrType) # 24 NAs
+summary(all$MSSubClass)
+
+### strange here, if there is a veneer type there should be an area
+### lets check is veneer area NA are also veneer type NA
+length(which(is.na(all$MasVnrType) & is.na(all$MasVnrArea)))
+
+## lets find the one that should have veneer type
+all[is.na(all$MasVnrType) & !is.na(all$MasVnrArea), c('MasVnrType', 'MasVnrArea')]
+
+### house 2611, lets impute using the most common Vnr type
+names(sort(-table(all$MasVnrType)))
+## most common one so we will use BrkFace as the value
+all$MasVnrType[2611] <- names(sort(-table(all$MasVnrType)))[2]
+all[2611, c('MasVnrType', 'MasVnrArea')]
+## fixed Masonry Veneer Type!
+
+### 23 other houses
+
+all$MasVnrType = as.character(all$MasVnrType)
+all$MasVnrType[is.na(all$MasVnrType)] <- 'None'
+
+### lets see if there is ordinality here by looking at the median veneer type
+all[!is.na(all$SalePrice),] %>% group_by(MasVnrType) %>% summarise(median = median(SalePrice), counts=n()) %>% arrange(median)
+
+### Brick Common and None seems different to other types in terms of sales price
+### we could assume stone and wood houses are considerably cheaper
+
+### we will make this value ordinal
+
+Masonry = c('None' =0, 'BrkCmn'=0, 'BrkFace' =1, 'Stone' =2)
+all$MasVnrType<-as.integer(revalue(all$MasVnrType, Masonry))
+table(all$MasVnrType)
+
+
+### Masonry Veneer area
+# lets sub in 0 for NA
+all$MasVnrArea[is.na(all$MasVnrArea)] = 0
+
+summary(all$MasVnrArea) # 23 NAs
+summary(all$MasVnrType) # 24 NAs
+
+#### Fixed NAs for Masonry
+
+###### Zoning NAs
+table(all$MSZoning)
+sum(is.na(all$MSZoning)) ## 4 NAs
+
+##impute most occuring values
+all$MSZoning[is.na(all$MSZoning)] <- names(sort(-table(all$MSZoning)))[1]
+all$MSZoning <- as.factor(all$MSZoning)
+table(all$MSZoning)
+sum(is.na(all$MSZoning))
+## no more NAs for Zoning
+
+### Kitchen NAs
+summary(all$KitchenQual) ## 1 NA
+summary(all$KitchenAbvGr) ## Complete, no NAs
+
+### lets replace the 1 NA with most common value 'TA'
+all$KitchenQual[is.na(all$KitchenQual)] = 'TA'
+all$KitchenQual = as.character(all$KitchenQual)
+### Ordinal Value
+all$KitchenQual<-as.integer(revalue(all$KitchenQual, Qualities))
+table(all$KitchenQual)
+
+## Kitchen Values Dealt with
+
+### Utilities NAs
+summary(all$Utilities) ## 2 NA
+table(all$Utilities)
+ #### only one house does not have all utilities
+## whats noticible here is that this house is only in the train
+
+## none are in the test set, makes it useless for predictions
+### lets see the NAs and the NoSweWa
+kable(all[is.na(all$Utilities) | all$Utilities=='NoSeWa', 1:9])
+
+#### this isnt helpful for prediction, so we should remove Utilities
+all$Utilities = NULL
+
+#### Got ridden of utilities
+
+### Home Functionality
+summary(all$Functional) ## 2NAs
+## ordinal according to functionality
+all$Functional[is.na(all$Functional)] <- names(sort(-table(all$Functional)))[1]
+all$Functional = as.character(all$Functional)
+all$Functional <- as.integer(revalue(all$Functional, c('Sal'=0, 'Sev'=1, 'Maj2'=2, 'Maj1'=3, 'Mod'=4, 'Min2'=5, 'Min1'=6, 'Typ'=7)))                                   
+table(all$Functional)                           
+
+### Functional NAs dealt with
+
+#### Exterior Variables
+summary(all$ExterCond) # no NAs
+summary(all$Exterior1st) # 1 NA
+summary(all$Exterior2nd) # 1 NA
+summary(all$ExterQual) # no NAs
+
+#### these values are categorical describing the exterior of a house
+### use common value for imputation
+
+all$Exterior1st[is.na(all$Exterior1st)] <- names(sort(-table(all$Exterior1st)))[1]
+all$Exterior1st <- as.factor(all$Exterior1st)
+table(all$Exterior1st)
+sum(table(all$Exterior1st)) ## no NAs
+
+all$Exterior2nd[is.na(all$Exterior2nd)] <- names(sort(-table(all$Exterior2nd)))[1]
+
+all$Exterior2nd <- as.factor(all$Exterior2nd)
+table(all$Exterior2nd)
+sum(table(all$Exterior2nd)) ## no NAs
+
+## ExterQual
+## we should make this ordinal
+all$ExterQual = as.character(all$ExterQual)
+all$ExterQual<-as.integer(revalue(all$ExterQual, Qualities))
+table(all$ExterQual)
+
+## Exter Cond
+## ordinal value
+all$ExterCond = as.character(all$ExterCond)
+all$ExterCond<-as.integer(revalue(all$ExterCond, Qualities))
+table(all$ExterCond)
+summary(all$ExterCond)
