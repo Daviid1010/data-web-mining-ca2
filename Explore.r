@@ -717,7 +717,7 @@ dim(FactorsOneHot)
 
 newAll = cbind(Normalised, FactorsOneHot)
 
-N
+
 ########## Skewness of Sales Price
 ######### Graph above showed right skew to sales price
 
@@ -736,6 +736,7 @@ qqline(all$SalePrice)
 
 #########################################################################################
 #### Lets put back the train and test data sets
+newAll = cbind(newAll, all$SalePrice)
 newTrain = newAll[!is.na(all$SalePrice),]
 newTest = newAll[is.na(all$SalePrice),]
 #########################################################################################
@@ -744,53 +745,30 @@ newTest = newAll[is.na(all$SalePrice),]
 ##### We will need to divide our train data to examine accuracy locally using sampling
 ##########################################################################################
 
-x = model.matrix(SalePrice~., all)
-y = all$SalePrice[!is.na(all$SalePrice)]
-lambda = 10^seq(10,-2, length = 1000)
+##### Model 1: RandomForest
+## Lets sample data
+head(newTrain$`all$SalePrice`)
+newTrain = newTrain %>%
+  rename(
+    SalePrice = `all$SalePrice`
+  )
+head(newTrain$SalePrice)
+set.seed(12345)
+trainSubSet = sample(nrow(newTrain), 0.7*nrow(newTrain), replace = FALSE)
+TrainSet = newTrain[trainSubSet,]
+TestSet = newTrain[-trainSubSet,]
+summary(TrainSet)
+summary(TestSet)
 
+## Extreme Gradient Boosting
+rfmod = train(SalePrice~.,
+              data = TrainSet,
+              method = 'xgbLinear')
 
-lasso.mod = glmnet(x,y,alpha=1, lambda = lambda)
+rfmod$bestTune
+## nRounds = 150, lambda = 0.1, alpha = 0, eta = 0.3
+## nRounds, max number of iteration
+## eta: learning rate, low eta is slower computation, needs increased rounds
+## between 0.1 and 0.3
+## lambda: controls L2 regularisation on weights, used to avoid overfitting
 
-plot(lasso.mod)
-print(lasso.mod)
-coef(lasso.mod,s=0.1)
-
-## cross validation
-cvLasso = cv.glmnet(x,y)
-plot(cvLasso)
-cvLasso$lambda.min
-coef(cvLasso, s ='lambda.min')
-
-
-
-exp(predict(cvLasso, newx = x[1:5,], s = 'lambda.min'))
-
-
-#### Attempt at XGBoost, only run caret train once to get best Tuning Values
-my_control = trainControl(method="cv", number=5)
-##xgb_caret = train(x=newTrain, y=all$SalePrice[!is.na(all$SalePrice)], method='xgbTree', trControl= my_control, tuneGrid=xgb_grid) 
-##xgb_caret$bestTune
-
-#### create a grid based off of Best Tune here
-xgb_grid = expand.grid(
-  nrounds = 1000,
-  eta = c(0.1, 0.05, 0.01),
-  max_depth = c(2, 3, 4, 5, 6),
-  gamma = 0,
-  colsample_bytree=1,
-  min_child_weight=c(1, 2, 3, 4 ,5),
-  subsample=1
-)
-
-label_train = all$SalePrice[!is.na(all$SalePrice)]
-
-trainXGB = xgb.DMatrix(data = as.matrix(newTrain), label = label_train)
-testXGB = xgb.DMatrix(data = as.matrix(newTest))
-
-xgbcv <- xgb.cv( params = xgb_grid, data = trainXGB, nrounds = 500, nfold = 5, showsd = T, stratified = T, print_every_n = 40, early_stopping_rounds = 10, maximize = F)
-xgb_mod <- xgb.train(data = trainXGB, params=xgb_grid, nrounds = 500)
-XGBPrediction = predict(xgb_mod, testXGB)
-xgb_mod$nfeatures
-
-submission = data.frame(ID= Test_IDs, SalePrice = XGBPrediction)
-head(submission)
