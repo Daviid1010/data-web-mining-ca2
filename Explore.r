@@ -766,9 +766,83 @@ rfmod = train(SalePrice~.,
               method = 'xgbLinear')
 
 rfmod$bestTune
-## nRounds = 150, lambda = 0.1, alpha = 0, eta = 0.3
+## nRounds = 100, lambda = 0.1, alpha = 0, eta = 0.3
 ## nRounds, max number of iteration
-## eta: learning rate, low eta is slower computation, needs increased rounds
-## between 0.1 and 0.3
-## lambda: controls L2 regularisation on weights, used to avoid overfitting
+## eta: 0.3, 
+##learning rate, low eta is slower computation, needs increased rounds
+##value  between 0.1 and 0.3
+## lambda: 1e-4 controls L2 regularisation on weights, used to avoid overfitting
+
+#### Lets test this
+rfmod$finalModel
+Predictions = predict(rfmod, TestSet)
+RMSE(pred = Predictions, TestSet$SalePrice)
+## Root Mean Square Error (RMSE) of 0.1381345
+RSqauredRandomForest =cor(TestSet$SalePrice,Predictions) ^ 2
+## R Sqaured 0.08988504
+
+
+#### Lets Try Ridge Regression
+x = as.matrix(TrainSet)
+RidgeReg = cv.glmnet(x,TrainSet$SalePrice, alpha = 0.0004, family = 'gaussian', lambda = 10^seq(2,-3, by =-.1))
+summary(RidgeReg)
+optimallambda = RidgeReg$lambda.min
+optimallambda
+
+eval_results <- function(true, predicted, df) {
+  SSE <- sum((predicted - true)^2)
+  SST <- sum((true - mean(true))^2)
+  R_square <- 1 - SSE / SST
+  RMSE = sqrt(SSE/nrow(df))
+  
+  
+  # Model performance metrics
+  data.frame(
+    RMSE = RMSE,
+    Rsquare = R_square
+  )
+  
+}
+
+RidgePred = predict(RidgeReg, s= optimallambda, newx = as.matrix(TestSet))
+eval_results(TestSet$SalePrice, RidgePred, TestSet)
+
+### Ridge Regression
+###   RMSE          Rsquare
+## 0.005402539   0.9998453
+
+
+
+
+###### Lasso Regression: Least Absolute Shrinkage and Selection Operator
+
+LassoReg = cv.glmnet(x,TrainSet$SalePrice, alpha =1, lambda = 10^seq(2, -3, by = -.1), standardize = TRUE, nfolds = 5)
+
+## Best Lambda
+lambda_best = LassoReg$lambda.min
+lambda_best
+lasso_model <- glmnet(x, TrainSet$SalePrice, alpha = 1, lambda = lambda_best, standardize = TRUE)
+
+x_test = as.matrix(TestSet)
+PredLasso = predict(lasso_model, s =lambda_best, newx = x_test)
+eval_results(TestSet$SalePrice, PredLasso, TestSet)
+
+#### Lasso Results
+##      RMSE   Rsquare
+### 0.001133448 0.9999932
+
+
+######## Elastic Net Model
+
+ENet = train(SalePrice~.,
+              data = TrainSet,
+              method = 'enet')
+ENet$bestTune
+######
+## fraction: 0.525
+### lambda 0.1
+ENetPred = predict(ENet, TestSet)
+eval_results(TestSet$SalePrice, ENetPred, TestSet)
+###         RMSE   Rsquare
+###     0.1181303 0.9260215
 
