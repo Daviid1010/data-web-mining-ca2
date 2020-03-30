@@ -57,11 +57,13 @@ all =  rbind(traindata, testdata)
 dim(all)
 
 ################ Examing the Distrubution of Sales Data
-
+require(scales)
 ggplot(data = all[!is.na(all$SalePrice),],
        aes(x=SalePrice)) +
-  geom_histogram(fill="blue", binwidth = 10000) +
-  scale_x_continuous(breaks = seq(0, 800000, by=100000))
+  geom_histogram(color='black',fill="red", binwidth = 10000) +
+  scale_x_continuous(breaks = seq(0, 800000, by=250000), labels = scales::comma) +
+  xlab("Sales Price in US Dollar ($)") + ylab("Frequency") +
+  ggtitle("Histogram of Sale Price Distribution Ames, Iowa")
 
 summary(all$SalePrice)
 ##### we can see here a very left skew, the data is not noramlly distibuted
@@ -734,6 +736,14 @@ skew(all$SalePrice)
 qqnorm(all$SalePrice)
 qqline(all$SalePrice)
 
+ggplot(data = all[!is.na(all$SalePrice),],
+       aes(x=SalePrice)) +
+  geom_histogram(color='black',fill="red", binwidth = 10000) +
+  scale_x_continuous(breaks = seq(0, 800000, by=250000), labels = scales::comma) +
+  xlab("Sales Price in US Dollar ($)") + ylab("Frequency") +
+  ggtitle("Histogram of Sale Price Distribution Ames, Iowa")
+
+
 #########################################################################################
 #### Lets put back the train and test data sets
 newAll = cbind(newAll, all$SalePrice)
@@ -806,12 +816,19 @@ plot(XGBModel, xvar='eta', label = TRUE)
 #### Lets test this
 
 Predictions = predict(XGBModel, TestSet)
+eval_results(TestSet$SalePrice, XGBModel, TestSet)
 RMSE(pred = Predictions, TestSet$SalePrice)
+MAE(pred = Predictions, TestSet$SalePrice)
+
 ## Root Mean Square Error (RMSE) of 0.1381345
-RSqauredRandomForest =cor(TestSet$SalePrice,Predictions) ^ 2
+RSqauredXGBoost =cor(TestSet$SalePrice,Predictions) ^ 2
 ## R Sqaured 0.08988504
-
-
+RSqauredXGBoostAdj = 1-(1-RSqauredXGBoost)*((nrow(TestSet)-1)/(nrow(TestSet)-1-(ncol(TestSet)-1)))
+RSqauredXGBoostAdj
+#### 0.8165064
+MAEXGB = (sum(abs(TestSet$SalePrice - Predictions)))*(1/nrow(TestSet))
+MAEXGB
+## 0.09924094
 #### Ridge Regression
 RidgeRegCaret = train(x=TrainSet, y = TrainSet$SalePrice, method = 'glmnet',
                       trControl = trainControl(method = 'cv', number = 5),
@@ -825,8 +842,8 @@ RidgePred = predict(RidgeRegCaret, TestSet,s= optimalLambda)
 eval_results(TestSet$SalePrice, RidgePred, TestSet)
 
 ### Ridge Regression
-###   RMSE          Rsquare
-## 0.005402539   0.9998453
+##     MAE       RMSE      Rsquare   RsqaureAdj
+## 0.04383773 0.06463822 0.9778506  0.9623375
 
 ###### Lasso Regression: Least Absolute Shrinkage and Selection Operator
 
@@ -842,8 +859,8 @@ lambda_best
 PredLasso = predict(LassoReg, TestSet, s= lambda_best)
 eval_results(TestSet$SalePrice, PredLasso, TestSet)
 
-####  RMSE    Rsquare   RsqaureAdj
-# 0.01267285 0.9991486  0.9985523
+###    MAE         RMSE     Rsquare   RsqaureAdj
+#  0.009812237 0.01267285 0.9991486  0.9985523
 
 
 ######## Elastic Net Model
@@ -866,21 +883,40 @@ eval_results(TestSet$SalePrice, ENetPred, TestSet)
 # 0.08446026 0.1181303 0.9260215  0.8742078
 
 ENetTest = cbind(ENetPred, TestSet$SalePrice)
-ENetTest = as.data.frame(ENetTest)
-plot(TestSet$SalePrice, ENetPred, pch = 16, cex = 0.8,
-     col = 'black', main = 'Predicted Sales Prices Against Observed',
-     xlab = 'Test Data House Sale Price',
-     ylab = 'Elastic Net Model Predicted Sale Price')
-abline(coef = c(0,1))
-
 LassoTest = cbind(PredLasso, TestSet$SalePrice)
-plot(TestSet$SalePrice, PredLasso, pch = 16, cex = 0.8,
-     col = 'black', main = 'Predicted Sales Prices Against Observed',
+RidgeTest = cbind(RidgePred, TestSet$SalePrice)
+XGBTest = cbind(Predictions, TestSet$SalePrice)
+ENetTest = as.data.frame(ENetTest)
+options(scipen=999)
+par(mfrow=c(2,2))
+
+plot(exp(TestSet$SalePrice), exp(ENetPred), pch = 16, cex = 0.8,
+     col = 'orange', main = 'Elastic Net',
      xlab = 'Test Data House Sale Price',
-     ylab = 'Lasso Model Predicted Sale Price')
+     ylab = 'Predicted Sale Price')
 abline(coef = c(0,1))
 
 
+plot(exp(TestSet$SalePrice), exp(PredLasso), pch = 16, cex = 0.8,
+     col = 'red', main = 'Lasso Model',
+     xlab = 'Test Data House Sale Price',
+     ylab = 'Predicted Sale Price')
+abline(coef = c(0,1))
+
+
+plot(exp(TestSet$SalePrice), exp(RidgePred), pch = 16, cex = 0.8,
+     col = 'green', main = 'Ridge Model',
+     xlab = 'Test Data House Sale Price',
+     ylab = 'Predicted Sale Price')
+abline(coef = c(0,1))
+
+
+
+plot(exp(TestSet$SalePrice), exp(Predictions), pch = 16, cex = 0.8,
+     col = 'blue', main = 'XGB Model',
+     xlab = 'Test Data House Sale Price',
+     ylab = 'Predicted Sale Price')
+abline(coef = c(0,1))
 #### Helps us Pick Full Fraction, lowest is best!!
 
 
