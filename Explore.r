@@ -745,6 +745,30 @@ newTest = newAll[is.na(all$SalePrice),]
 ##### We will need to divide our train data to examine accuracy locally using sampling
 ##########################################################################################
 
+eval_results <- function(true, predicted, df) {
+  MAE = (sum(abs(true - predicted)))*(1/nrow(df))
+  SSE <- sum((predicted - true)^2)
+  SST <- sum((true - mean(true))^2)
+  R_square <- 1 - SSE / SST
+  RMSE = sqrt(SSE/nrow(df))
+  x = 1 - R_square
+  y = nrow(df) -1
+  z = nrow(df) -  ncol(df) - 1 -1
+  R_squareAdj = 1- (((x)*(y))/z)
+  
+  
+  # Model performance metrics
+  data.frame(
+    MAE = MAE,
+    RMSE = RMSE,
+    Rsquare = R_square,
+    RsqaureAdj = R_squareAdj
+  )
+  
+}
+
+
+
 ##### Model 1: RandomForest
 ## Lets sample data
 head(newTrain$`all$SalePrice`)
@@ -761,11 +785,17 @@ summary(TrainSet)
 summary(TestSet)
 
 ## Extreme Gradient Boosting
-rfmod = train(SalePrice~.,
+XGBModel = train(SalePrice~.,
               data = TrainSet,
-              method = 'xgbLinear')
+              method = 'xgbLinear',
+              trControl = trainControl(method = 'cv', number = 5))
 
-rfmod$bestTune
+plot_tree
+
+BestLambdaXGBoost = XGBModel$bestTune
+BestLambdaXGBoost
+plot(XGBModel, xvar='lambda', label = TRUE)
+plot(XGBModel, xvar='eta', label = TRUE)
 ## nRounds = 100, lambda = 0.1, alpha = 0, eta = 0.3
 ## nRounds, max number of iteration
 ## eta: 0.3, 
@@ -774,62 +804,46 @@ rfmod$bestTune
 ## lambda: 1e-4 controls L2 regularisation on weights, used to avoid overfitting
 
 #### Lets test this
-rfmod$finalModel
-Predictions = predict(rfmod, TestSet)
+
+Predictions = predict(XGBModel, TestSet)
 RMSE(pred = Predictions, TestSet$SalePrice)
 ## Root Mean Square Error (RMSE) of 0.1381345
 RSqauredRandomForest =cor(TestSet$SalePrice,Predictions) ^ 2
 ## R Sqaured 0.08988504
 
 
-#### Lets Try Ridge Regression
-x = as.matrix(TrainSet)
-RidgeReg = cv.glmnet(x,TrainSet$SalePrice, alpha = 0.0004, family = 'gaussian', lambda = 10^seq(2,-3, by =-.1))
-summary(RidgeReg)
-optimallambda = RidgeReg$lambda.min
-optimallambda
+#### Ridge Regression
+RidgeRegCaret = train(x=TrainSet, y = TrainSet$SalePrice, method = 'glmnet',
+                      trControl = trainControl(method = 'cv', number = 5),
+                      tuneGrid = expand.grid(alpha = 0, lambda = seq(0.001, 0.1, by=0.0005)))
+summary(RidgeRegCaret)
+optimalLambda = RidgeRegCaret$bestTune$lambda
+plot(RidgeRegCaret, xvar='lambda', label = TRUE)
 
-eval_results <- function(true, predicted, df) {
-  SSE <- sum((predicted - true)^2)
-  SST <- sum((true - mean(true))^2)
-  R_square <- 1 - SSE / SST
-  RMSE = sqrt(SSE/nrow(df))
-  
-  
-  # Model performance metrics
-  data.frame(
-    RMSE = RMSE,
-    Rsquare = R_square
-  )
-  
-}
 
-RidgePred = predict(RidgeReg, s= optimallambda, newx = as.matrix(TestSet))
+RidgePred = predict(RidgeRegCaret, TestSet,s= optimalLambda)
 eval_results(TestSet$SalePrice, RidgePred, TestSet)
 
 ### Ridge Regression
 ###   RMSE          Rsquare
 ## 0.005402539   0.9998453
 
-
-
-
 ###### Lasso Regression: Least Absolute Shrinkage and Selection Operator
 
-LassoReg = cv.glmnet(x,TrainSet$SalePrice, alpha =1, lambda = 10^seq(2, -3, by = -.1), standardize = TRUE, nfolds = 5)
+LassoReg = train(x=TrainSet, y = TrainSet$SalePrice, method = 'glmnet',
+                 trControl = trainControl(method = 'cv', number = 5),
+                 tuneGrid = expand.grid(alpha = 1, lambda = seq(0.001, 0.1, by=0.0005)))
+
+plot(LassoReg, xvar='lambda', label = TRUE)
 
 ## Best Lambda
-lambda_best = LassoReg$lambda.min
+lambda_best = LassoReg$bestTune$lambda
 lambda_best
-lasso_model <- glmnet(x, TrainSet$SalePrice, alpha = 1, lambda = lambda_best, standardize = TRUE)
-
-x_test = as.matrix(TestSet)
-PredLasso = predict(lasso_model, s =lambda_best, newx = x_test)
+PredLasso = predict(LassoReg, TestSet, s= lambda_best)
 eval_results(TestSet$SalePrice, PredLasso, TestSet)
 
-#### Lasso Results
-##      RMSE   Rsquare
-### 0.001133448 0.9999932
+####  RMSE    Rsquare   RsqaureAdj
+# 0.01267285 0.9991486  0.9985523
 
 
 ######## Elastic Net Model
@@ -838,11 +852,35 @@ ENet = train(SalePrice~.,
               data = TrainSet,
               method = 'enet')
 ENet$bestTune
+plot(ENet,
+     plotType = 'scatter',
+     metric = ENet$perfNames[1],
+     digits = getOption('digits') - 5,
+     xTrans = NULL)
 ######
 ## fraction: 0.525
 ### lambda 0.1
-ENetPred = predict(ENet, TestSet)
+ENetPred = predict(ENet, TestSet, lamdba = 0.1, fraction= 0.525)
 eval_results(TestSet$SalePrice, ENetPred, TestSet)
-###         RMSE   Rsquare
-###     0.1181303 0.9260215
+#      MAE      RMSE     Rsquare  RsqaureAdj
+# 0.08446026 0.1181303 0.9260215  0.8742078
+
+ENetTest = cbind(ENetPred, TestSet$SalePrice)
+ENetTest = as.data.frame(ENetTest)
+plot(TestSet$SalePrice, ENetPred, pch = 16, cex = 0.8,
+     col = 'black', main = 'Predicted Sales Prices Against Observed',
+     xlab = 'Test Data House Sale Price',
+     ylab = 'Elastic Net Model Predicted Sale Price')
+abline(coef = c(0,1))
+
+LassoTest = cbind(PredLasso, TestSet$SalePrice)
+plot(TestSet$SalePrice, PredLasso, pch = 16, cex = 0.8,
+     col = 'black', main = 'Predicted Sales Prices Against Observed',
+     xlab = 'Test Data House Sale Price',
+     ylab = 'Lasso Model Predicted Sale Price')
+abline(coef = c(0,1))
+
+
+#### Helps us Pick Full Fraction, lowest is best!!
+
 
