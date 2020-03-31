@@ -1,0 +1,9 @@
+Abstract - 0.3 of page
+Intro - 0.6 (0.9 so far)
+Related Work - 0.6 ( 1.5 pages)
+Methodology - 1.2 ( 2.7 pages)
+Implementation - 1.2 ( 3.9 pages)
+Evaluations - 1.2 (5.2 pages so far)
+Conclusions and Future Work - 0.6 (5.8 pages so far)
+
+0.2 pages of wiggle room!
