@@ -31,8 +31,6 @@ library(glmnet)
 
 testdata = read.csv("test.csv", header = T)
 traindata = read.csv("train.csv", header = T)
-sampleSubmission = read.csv("sample_submission.csv", header = T)
-
 summary(testdata)
 
 ## MSSubClass: Identiifies the type of dwelling involved in sale
@@ -66,6 +64,9 @@ ggplot(data = all[!is.na(all$SalePrice),],
   ggtitle("Histogram of Sale Price Distribution Ames, Iowa")
 
 summary(all$SalePrice)
+colSums(is.na(traindata))
+apply(is.na(traindata), 2, sum)
+sum(is.na(traindata))
 ##### we can see here a very left skew, the data is not noramlly distibuted
 ##### we will need to account for this when we build our model
 #### we could get the log of this sales data to perhaps get rid of the skewness
@@ -621,6 +622,7 @@ ggplot(data=all[!is.na(all$SalePrice),], aes(x=factor(OverallQual), y=SalePrice)
 ggplot(data=all[!is.na(all$SalePrice),], aes(x=GrLivArea, y=SalePrice))+
   geom_point(col='blue') + geom_smooth(method = "lm", se=FALSE, color="black", aes(group=1)) +
   scale_y_continuous(breaks= seq(0, 800000, by=100000), labels = comma) +
+  xlab("Ground Level Area (Sqaure Ft.)") + ylab('Sale Price ($)') + ggtitle('Correlation Between Sale Price and Ground Level Area') +
   geom_text_repel(aes(label = ifelse(all$GrLivArea[!is.na(all$SalePrice)]>4500, rownames(all), '')))
 
 #### Looking at this we can see house 525 and 1299 are outliers in terms of Livng Area
@@ -663,8 +665,11 @@ cor(all$SalePrice, all$TotalSqaureFeet, use = 'pairwise.complete.obs')
 dropVars <- c('YearRemodAdd', 'GarageYrBlt', 'GarageArea', 'GarageCond', 'TotalBsmtSF', 'TotalRmsAbvGrd', 'BsmtFinSF1')
 all = all[,!(names(all) %in% dropVars)]
 
-
-
+### Year Remod add Correlated with: Exter Quality, Kitchen Quality (0.61)
+## Garage Year Built correlated with: Year Built (0.85)
+## Garage Area correlated with: Garage Cars (0.89)
+## Total Basement SF =  X1st Floor SF (0.8)
+##Rooms above ground correlated with: grl area (0.81)
 #######################
 ## Seperate out numeric variables for preprocessing
 numericVarNames <- numericVarNames[!(numericVarNames %in% c('MSSubClass', 'MoSold', 'YrSold', 'SalePrice', 'OverallQual', 'OverallCond'))] 
@@ -724,7 +729,7 @@ newAll = cbind(Normalised, FactorsOneHot)
 ######### Graph above showed right skew to sales price
 
 skew(all$SalePrice)
-
+par(mfrow=c(1,2))
 qqnorm(all$SalePrice)
 qqline(all$SalePrice)
 
@@ -779,7 +784,7 @@ eval_results <- function(true, predicted, df) {
 
 
 
-##### Model 1: RandomForest
+
 ## Lets sample data
 head(newTrain$`all$SalePrice`)
 newTrain = newTrain %>%
@@ -794,13 +799,15 @@ TestSet = newTrain[-trainSubSet,]
 summary(TrainSet)
 summary(TestSet)
 
+
+
 ## Extreme Gradient Boosting
 XGBModel = train(SalePrice~.,
               data = TrainSet,
               method = 'xgbLinear',
               trControl = trainControl(method = 'cv', number = 5))
 
-plot_tree
+
 
 BestLambdaXGBoost = XGBModel$bestTune
 BestLambdaXGBoost
@@ -819,8 +826,8 @@ Predictions = predict(XGBModel, TestSet)
 eval_results(TestSet$SalePrice, XGBModel, TestSet)
 RMSE(pred = Predictions, TestSet$SalePrice)
 MAE(pred = Predictions, TestSet$SalePrice)
-
-## Root Mean Square Error (RMSE) of 0.1381345
+### MAE 0.09924094
+## Root Mean Square Error (RMSE) of 0.1433918
 RSqauredXGBoost =cor(TestSet$SalePrice,Predictions) ^ 2
 ## R Sqaured 0.08988504
 RSqauredXGBoostAdj = 1-(1-RSqauredXGBoost)*((nrow(TestSet)-1)/(nrow(TestSet)-1-(ncol(TestSet)-1)))
@@ -830,37 +837,61 @@ MAEXGB = (sum(abs(TestSet$SalePrice - Predictions)))*(1/nrow(TestSet))
 MAEXGB
 ## 0.09924094
 #### Ridge Regression
-RidgeRegCaret = train(x=TrainSet, y = TrainSet$SalePrice, method = 'glmnet',
+RidgeRegCaret = train(SalePrice~., data = TrainSet, method = 'glmnet',
                       trControl = trainControl(method = 'cv', number = 5),
                       tuneGrid = expand.grid(alpha = 0, lambda = seq(0.001, 0.1, by=0.0005)))
 summary(RidgeRegCaret)
 optimalLambda = RidgeRegCaret$bestTune$lambda
 plot(RidgeRegCaret, xvar='lambda', label = TRUE)
 
+lambda_best = LassoReg$bestTune$lambda
+lambda_best
+
+lassoVarImp <- varImp(RidgeRegCaret,scale=F)
+lassoImportance <- lassoVarImp$importance
+
+varsSelected <- length(which(lassoImportance$Overall!=0))
+varsNotSelected <- length(which(lassoImportance$Overall==0))
+lassoImportance
+cat('Lasso uses', varsSelected, 'variables in its model, and did not select', varsNotSelected, 'variables.')
+
+
 
 RidgePred = predict(RidgeRegCaret, TestSet,s= optimalLambda)
 eval_results(TestSet$SalePrice, RidgePred, TestSet)
 
 ### Ridge Regression
-##     MAE       RMSE      Rsquare   RsqaureAdj
-## 0.04383773 0.06463822 0.9778506  0.9623375
+###   MAE      RMSE       Rsquare    RsqaureAdj
+## 0.07935714 0.1167128 0.9277864  0.8772087
 
 ###### Lasso Regression: Least Absolute Shrinkage and Selection Operator
 
-LassoReg = train(x=TrainSet, y = TrainSet$SalePrice, method = 'glmnet',
+
+LassoReg = train(SalePrice~.,data = TrainSet, method = 'glmnet',
                  trControl = trainControl(method = 'cv', number = 5),
                  tuneGrid = expand.grid(alpha = 1, lambda = seq(0.001, 0.1, by=0.0005)))
 
 plot(LassoReg, xvar='lambda', label = TRUE)
 
+
 ## Best Lambda
-lambda_best = LassoReg$bestTune$lambda
+lambda_best = LassoReg$bestTune
 lambda_best
+#### lambda 0.0035, alpha 1
+
+lassoVarImp <- varImp(LassoReg,scale=F)
+lassoImportance <- lassoVarImp$importance
+
+varsSelected <- length(which(lassoImportance$Overall!=0))
+varsNotSelected <- length(which(lassoImportance$Overall==0))
+lassoImportance
+cat('Lasso uses', varsSelected, 'variables in its model, and did not select', varsNotSelected, 'variables.')
+#### used 80 variables, did not use 98 variables
 PredLasso = predict(LassoReg, TestSet, s= lambda_best)
 eval_results(TestSet$SalePrice, PredLasso, TestSet)
 
-###    MAE         RMSE     Rsquare   RsqaureAdj
-#  0.009812237 0.01267285 0.9991486  0.9985523
+#      MAE      RMSE      Rsquare   RsqaureAdj
+#  0.07890707 0.1150837 0.9297882  0.8806126
 
 
 ######## Elastic Net Model
@@ -869,6 +900,7 @@ ENet = train(SalePrice~.,
               data = TrainSet,
               method = 'enet')
 ENet$bestTune
+### fraction 0.525, lambda 0.1
 plot(ENet,
      plotType = 'scatter',
      metric = ENet$perfNames[1],
@@ -887,6 +919,46 @@ LassoTest = cbind(PredLasso, TestSet$SalePrice)
 RidgeTest = cbind(RidgePred, TestSet$SalePrice)
 XGBTest = cbind(Predictions, TestSet$SalePrice)
 ENetTest = as.data.frame(ENetTest)
+LassoTest = as.data.frame(LassoTest)
+RidgeTest = as.data.frame(RidgeTest)
+XGBTest = as.data.frame(XGBTest)
+
+options(scipen=999)
+par(mfrow=c(2,2))
+ENetGraph = ggplot(data = ENetTest,
+       aes(x = exp(V2), y = exp(ENetPred))) +
+  geom_point(color='red') + geom_abline(intercept = 0) +
+  xlab('Actual Sale Price ($)') + ylab('Predicted Sale Price ($)') + ggtitle('ENet') +
+  scale_x_continuous(breaks = seq(0, 800000, by=500000), labels = scales::comma) +
+  scale_y_continuous(labels = scales::comma)
+  
+
+LassoGraph = ggplot(data = LassoTest,
+       aes(x = exp(V2), y = exp(PredLasso))) +
+  geom_point(color='blue') + geom_abline(intercept = 0) +
+  xlab('Actual Sale Price ($)') + ylab('Predicted Sale Price ($)') + ggtitle('LASSO') +
+  scale_x_continuous(breaks = seq(0, 800000, by=500000), labels = scales::comma) +
+  scale_y_continuous(labels = scales::comma)
+
+RidgeGraph= ggplot(data = RidgeTest,
+       aes(x = exp(V2), y = exp(RidgePred))) +
+  geom_point(color='green') + geom_abline(intercept = 0) +
+  xlab('Actual Sale Price ($)') + ylab('Predicted Sale Price ($)') + ggtitle('RIDGE') +
+  scale_x_continuous(breaks = seq(0, 800000, by=500000), labels = scales::comma) +
+  scale_y_continuous(labels = scales::comma)
+
+XGBGraph= ggplot(data = XGBTest,
+       aes(x = exp(V2), y = exp(Predictions))) +
+  geom_point(color='orange') + geom_abline(intercept = 0) +
+  xlab('Actual Sale Price ($)') + ylab('Predicted Sale Price ($)') + ggtitle('XGBoost') +
+  scale_x_continuous(breaks = seq(0, 800000, by=500000), labels = scales::comma) +
+  scale_y_continuous(labels = scales::comma)
+
+install.packages('ggpubr')
+library(ggpubr)
+grid.arrange(ENetGraph, LassoGraph, RidgeGraph, XGBGraph,
+             ncol=2,nrow=2)
+
 options(scipen=999)
 par(mfrow=c(2,2))
 
@@ -917,6 +989,5 @@ plot(exp(TestSet$SalePrice), exp(Predictions), pch = 16, cex = 0.8,
      xlab = 'Test Data House Sale Price',
      ylab = 'Predicted Sale Price')
 abline(coef = c(0,1))
-#### Helps us Pick Full Fraction, lowest is best!!
 
 
